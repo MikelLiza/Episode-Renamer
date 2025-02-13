@@ -6,22 +6,46 @@ def sanitize_filename(title):
     """
     Sanitizes the filename by removing or replacing illegal characters.
     """
-    # Replace illegal characters with a hyphen
     illegal_chars = r'[\\/:*?"<>|]'
     sanitized_title = re.sub(illegal_chars, '-', title)
     return sanitized_title
 
-def get_episode_titles(show_name):
+def get_show_id(show_name, year=None):
     """
-    Fetches episode titles for a TV show using the TVMaze API.
-    Returns a dictionary where the key is (season, episode) and the value is the episode title.
+    Searches for a TV show by name and optionally filters by year.
+    Returns the show ID of the first matching result.
     """
-    url = f"http://api.tvmaze.com/singlesearch/shows?q={show_name}&embed=episodes"
+    url = f"http://api.tvmaze.com/search/shows?q={show_name}"
     response = requests.get(url)
     
     if response.status_code == 200:
-        data = response.json()
-        episodes = data['_embedded']['episodes']
+        results = response.json()
+        for result in results:
+            show = result['show']
+            # Check if the year matches (if provided)
+            if year and show['premiered']:
+                show_year = show['premiered'].split('-')[0]
+                if show_year == str(year):
+                    return show['id']
+            # If no year is provided, return the first result
+            elif not year:
+                return show['id']
+        print(f"No matching show found for '{show_name}' (year: {year})")
+        return None
+    else:
+        print(f"Error: Unable to fetch data (Status Code: {response.status_code})")
+        return None
+
+def get_episode_titles(show_id):
+    """
+    Fetches episode titles for a TV show using its ID.
+    Returns a dictionary where the key is (season, episode) and the value is the episode title.
+    """
+    url = f"http://api.tvmaze.com/shows/{show_id}/episodes"
+    response = requests.get(url)
+    
+    if response.status_code == 200:
+        episodes = response.json()
         
         # Create a dictionary of episode titles
         episode_dict = {}
@@ -85,12 +109,17 @@ def process_season_folders(base_folder, episode_dict):
                 print(f"Skipping folder '{folder_name}' (invalid format)")
 
 # Example usage
-show_name = "Smiling Friends"  # Replace with your TV show name
-base_folder = "d:\Shows\Smiling Friends"  # Replace with your base folder containing season folders
+show_name = "Avatar: The Last Airbender"  # Replace with your TV show name
+#show_year = "2005"  # Replace with the year the show premiered
+base_folder = "d:\Shows\Avatar the Last Airbender"  # Replace with your base folder containing season folders
 
-# Fetch episode titles
-episode_dict = get_episode_titles(show_name)
+# Get the correct show ID
+show_id = get_show_id(show_name, show_year)
 
-if episode_dict:
-    # Process each season folder
-    process_season_folders(base_folder, episode_dict)
+if show_id:
+    # Fetch episode titles
+    episode_dict = get_episode_titles(show_id)
+    
+    if episode_dict:
+        # Process each season folder
+        process_season_folders(base_folder, episode_dict)
